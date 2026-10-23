@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#17324d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Naganathan - Weaving Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20261023_06">
+<script>
+  // Automatic cache purge to force-load latest version
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+      for (var r of registrations) r.unregister();
+    });
+  }
+  if ('caches' in window) {
+    caches.keys().then(function(names) {
+      for (var name of names) caches.delete(name);
+    });
+  }
+</script>
+</head>
+<body>
+
+<!-- Header with App Title & History Action -->
+<header>
+  <div class="header-content">
+    <div class="header-titles">
+      <h1>NAGANATHAN</h1>
+      <p>WEAVING ANALYZER</p>
+    </div>
+    <div class="header-btns">
+      <button id="hamburgerBtn" class="hamburger-btn" aria-label="Open Features Menu" onclick="toggleMenu(true)" title="Menu & Features">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Quick Preset Chips (Horizontal Swipeable Bar) -->
+<div class="preset-scroll-container">
+  <div class="preset-scroll">
+    <span class="preset-tag">Quick Qualities</span>
+    <button class="chip active" onclick="applyPreset('poplin_54')">40*40 54" Plain</button>
+    <button class="chip" onclick="applyPreset('sheeting_66')">40*40 66" Sheeting</button>
+    <button class="chip" onclick="applyPreset('cambric_58')">60*60 58" Cambric</button>
+    <button class="chip" onclick="applyPreset('grey_sheeting')">30*30 63" Grey</button>
+    <button class="chip" onclick="applyPreset('heavy_twill')">20*20 58" Twill</button>
+    <button class="chip add-chip" onclick="saveAsCustomPreset()" title="Save current parameters as custom preset">+ Custom</button>
+  </div>
+</div>
+
+<main>
+  <!-- Card 1: Construction Details -->
+  <div class="card">
+    <h2>Construction Details</h2>
+    <div class="row">
+      <label class="sec1">WARP COUNT</label>
+      <input id="warpCount" type="number" inputmode="decimal" value="40" step="any">
+    </div>
+    <div class="row">
+      <label class="sec1">WEFT COUNT</label>
+      <input id="weftCount" type="number" inputmode="decimal" value="40" step="any">
+    </div>
+    <div class="row">
+      <label class="sec2">EPI</label>
+      <input id="epi" type="number" inputmode="decimal" value="92" step="any">
+    </div>
+    <div class="row">
+      <label class="sec2">PPI</label>
+      <input id="ppi" type="number" inputmode="decimal" value="88" step="any">
+    </div>
+    <div class="row">
+      <label class="sec3">WIDTH</label>
+      <input id="width" type="number" inputmode="decimal" value="54" step="any">
+    </div>
+    <div class="row">
+      <label class="sec3">WEAVE</label>
+      <input id="weave" class="text" value="PLAIN">
+    </div>
+  </div>
+
+  <!-- Card 2: Fabric Construction (Placed in the center between Construction Details and Weaving Calculation) -->
+  <div class="card">
+    <div class="card-title-bar">
+      <h2>Fabric Construction</h2>
+      <button class="parse-btn" onclick="parseConstruction()" title="Auto-fill counts, EPI, PPI from construction text">Auto Parse</button>
+    </div>
+    <div class="row">
+      <label class="sec1">CONSTRUCTION</label>
+      <input id="construction" class="text" value="40*40/92*88-54&quot;" placeholder="e.g. 40*40/92*88-54&quot;">
+    </div>
+  </div>
+
+  <!-- Card 3: Weaving Calculation -->
+  <div class="card">
+    <h2>Weaving Calculation</h2>
+    <div class="row">
+      <label class="sec2">TOTAL NO. OF ENDS</label>
+      <input id="ends" class="readonly" readonly value="4968.000">
+    </div>
+    <div class="row">
+      <label class="sec2">REED SPACE</label>
+      <input id="reedSpace" class="readonly" readonly value="57.080">
+    </div>
+    <div class="row">
+      <label class="sec1">WARP CRIMP %</label>
+      <input id="warpCrimp" type="number" inputmode="decimal" value="9" step="any">
+    </div>
+    <div class="row">
+      <label class="sec1">WEFT INSERT</label>
+      <input id="weftInsert" type="number" inputmode="numeric" value="1" step="1">
+    </div>
+    <div class="row">
+      <label class="sec1">WEFT CRIMP %</label>
+      <input id="weftCrimp" type="number" inputmode="decimal" value="2" step="any">
+    </div>
+    <div class="row">
+      <label class="sec2">WARP GRAMS/MTR</label>
+      <input id="warpGram" class="readonly" readonly value="80.525">
+    </div>
+    <div class="row">
+      <label class="sec2">WEFT GRAMS/MTR</label>
+      <input id="weftGram" class="readonly" readonly value="74.145">
+    </div>
+  </div>
+
+  <!-- Card 4: Costing -->
+  <div class="card">
+    <h2>Costing</h2>
+    <div class="row">
+      <label class="sec1">WARP YARN RATE</label>
+      <input id="warpRate" type="number" inputmode="decimal" value="372.5" step="any">
+    </div>
+    <div class="row">
+      <label class="sec2">WARP YARN VALUE</label>
+      <input id="warpValue" class="readonly" readonly value="29.996">
+    </div>
+    <div class="row">
+      <label class="sec1">WEFT YARN RATE</label>
+      <input id="weftRate" type="number" inputmode="decimal" value="372.5" step="any">
+    </div>
+    <div class="row">
+      <label class="sec2">WEFT YARN VALUE</label>
+      <input id="weftValue" class="readonly" readonly value="27.619">
+    </div>
+    <div class="row">
+      <label class="sec1">SIZING RATE / WARP KGS</label>
+      <input id="sizingRate" type="number" inputmode="decimal" value="32" step="any">
+    </div>
+    <div class="row">
+      <label class="sec2">SIZING VALUE</label>
+      <input id="sizingValue" class="readonly" readonly value="2.577">
+    </div>
+    <div class="row">
+      <label class="sec1">PICK RATE</label>
+      <input id="pickRate" type="number" inputmode="decimal" value="0.11" step="0.01">
+    </div>
+    <div class="row">
+      <label class="sec2">PICK VALUE</label>
+      <input id="pickValue" class="readonly" readonly value="9.680">
+    </div>
+    <div class="row">
+      <label class="sec3">TRANSPORT &amp; CHECKING CHARG</label>
+      <input id="transport" type="number" inputmode="decimal" value="1.25" step="any">
+    </div>
+    <div class="row">
+      <label class="sec3">VALUE LOSS / RATE / KG</label>
+      <input id="loss" type="number" inputmode="decimal" value="1" step="any">
+    </div>
+    <div class="row">
+      <label class="sec3">PROFIT %</label>
+      <input id="profitPct" type="number" inputmode="decimal" value="0.06" step="0.01">
+    </div>
+
+    <!-- Quick Technical Fabric Specs Bar -->
+    <div class="specs-pill-bar">
+      <span>Weight: <strong id="specGlm">154.67 g/m</strong></span>
+      <span>GSM: <strong id="specGsm">112.8 g/m²</strong></span>
+      <span>Yard: <strong id="specYard">₹69.91 / yd</strong></span>
+    </div>
+
+    <!-- Total Value Box -->
+    <div class="result">
+      <div class="caption">TOTAL VALUE</div>
+      <div class="value">₹ <span id="totalValue">72.122</span></div>
+    </div>
+
+    <!-- Net Fabric Value Box -->
+    <div class="result">
+      <div class="caption">NET FABRIC VALUE / PARTY RATE</div>
+      <div class="value">₹ <span id="netValue">76.449</span></div>
+    </div>
+  </div>
+
+  <!-- Card 5: Send to Party (Invoice & Quotation Generator) -->
+  <div class="card party">
+    <div class="card-title-bar">
+      <h2>📲 Invoice &amp; Quotation Generator</h2>
+      <button class="parse-btn" onclick="openProfileModal()" title="Edit My Company / Sender Information">⚙️ Edit My Company</button>
+    </div>
+
+    <div class="row">
+      <label class="sec1">TEMPLATE TYPE</label>
+      <select id="quoteFormatSelect" onchange="calculate()" class="format-select">
+        <option value="invoice" selected>Formal Commercial Invoice / Quotation</option>
+        <option value="customer">Quick WhatsApp Rate Quote</option>
+        <option value="technical">Technical Mill Specification Sheet</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label class="sec1">BUYER / PARTY NAME</label>
+      <input id="partyName" class="text" placeholder="e.g. Sri Murugan Textiles">
+    </div>
+
+    <div class="row">
+      <label class="sec2">WHATSAPP NUMBER</label>
+      <input id="partyPhone" class="text" inputmode="tel" placeholder="919876543210">
+    </div>
+
+    <div class="row">
+      <label class="sec3">ORDER METERS (OPTIONAL)</label>
+      <input id="partyMeters" type="number" inputmode="numeric" placeholder="e.g. 5000" oninput="calculate()">
+    </div>
+
+    <div id="invoiceSubtotalBar" class="specs-pill-bar" style="background:#eaf5ea; border-color:#70ad47; font-weight:700; color:#1f3d14;">
+      <span>Total Value: <strong id="invPartyTotal">--</strong></span>
+      <span>Sender: <strong id="invSenderDisplay">Naganathan Weaving Mills</strong></span>
+    </div>
+
+    <div class="preview" id="messagePreview"></div>
+
+    <div class="actions">
+      <button class="wa" onclick="sendWhatsApp()">Send WhatsApp</button>
+      <button class="copy" onclick="copyMessage()">Copy Message</button>
+    </div>
+    <button class="order-toggle-btn" style="background:#17324d; color:#fff; border:none; margin-top:8px;" onclick="openInvoiceModal()">
+      📄 View / Print Official A4 Invoice Card
+    </button>
+  </div>
+
+  <!-- Card 6: Actions (Reset, Print, Save, Order) -->
+  <div class="card">
+    <div class="actions">
+      <button class="reset" onclick="resetDefaults()">Reset</button>
+      <button class="save-btn" onclick="saveCurrentCosting()">Save Quote</button>
+      <button class="copy" onclick="openInvoiceModal()">Print Invoice</button>
+    </div>
+    <button class="order-toggle-btn" id="orderToggleBtn" onclick="toggleOrderDrawer()">
+      📦 Calculate Order Yarn Requirements (Bags &amp; Kgs)
+    </button>
+    <p class="small">Party sharing contains only the construction and final net fabric rate. Internal costing details are not included.</p>
+  </div>
+
+  <!-- Card 7: Collapsible Order Section -->
+  <div id="orderSection" class="card order-card" style="display: none;">
+    <h2>📦 Order &amp; Yarn Procurement Estimation</h2>
+    <div class="row">
+      <label class="sec1">ORDER METERS</label>
+      <input id="orderMeters" type="number" inputmode="numeric" value="5000" step="500">
+    </div>
+    <div class="row">
+      <label class="sec2">BAG WEIGHT (KG)</label>
+      <input id="bagWeight" type="number" inputmode="numeric" value="60" step="5">
+    </div>
+    <div class="row">
+      <label class="sec3">WASTAGE ALLOWANCE %</label>
+      <input id="wastePct" type="number" inputmode="decimal" value="2" step="0.5">
+    </div>
+
+    <div class="order-results-box">
+      <div class="order-line">
+        <span>Warp Yarn (<span id="lblWarpCount">40s</span>):</span>
+        <strong><span id="resWarpKg">410.68</span> kg (<span id="resWarpBags">6.84</span> Bags)</strong>
+      </div>
+      <div class="order-line">
+        <span>Weft Yarn (<span id="lblWeftCount">40s</span>):</span>
+        <strong><span id="resWeftKg">378.14</span> kg (<span id="resWeftBags">6.30</span> Bags)</strong>
+      </div>
+      <div class="order-line highlight">
+        <span>Total Procurement:</span>
+        <strong><span id="resTotalYarnKg">788.82</span> kg (<span id="resTotalBags">13.15</span> Bags)</strong>
+      </div>
+      <div class="order-line">
+        <span>Total Order Cost:</span>
+        <strong>₹ <span id="resOrderCost">3,60,610</span></strong>
+      </div>
+      <div class="order-line highlight-green">
+        <span>Total Order Invoicing:</span>
+        <strong>₹ <span id="resOrderValue">3,82,245</span></strong>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Floating Mobile Sticky Bottom Quick-Bar -->
+<div class="mobile-sticky-bottom">
+  <div class="sticky-inner">
+    <div class="sticky-info">
+      <span class="sticky-label">PARTY RATE</span>
+      <span class="sticky-rate">₹ <strong id="stickyNetVal">76.449</strong><small>/m</small></span>
+    </div>
+    <div class="sticky-actions">
+      <button class="sticky-btn wa" onclick="sendWhatsApp()" title="Send WhatsApp">
+        <span>WhatsApp</span>
+      </button>
+      <button class="sticky-btn copy" onclick="copyMessage()" title="Copy Quote">
+        <span>Copy</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Hamburger Features Menu Drawer -->
+<div id="menuOverlay" class="menu-overlay" onclick="toggleMenu(false)"></div>
+<aside id="menuDrawer" class="menu-drawer">
+  <div class="menu-header">
+    <div class="menu-brand">
+      <div class="menu-brand-title" id="drawerCompanyTitle">NAGANATHAN WEAVING MILLS</div>
+      <div class="menu-brand-sub">Features &amp; Tools Menu</div>
+    </div>
+    <button class="menu-close-btn" onclick="toggleMenu(false)">&times;</button>
+  </div>
+
+  <div class="menu-body">
+    <!-- Feature 0: Company Profile Settings -->
+    <div class="menu-section">
+      <div class="menu-section-title">
+        <span>🏢 SENDER / COMPANY PROFILE</span>
+      </div>
+      <button class="menu-item-btn" onclick="openProfileModal(); toggleMenu(false);">
+        <span class="item-icon">⚙️</span>
+        <div class="item-text">
+          <strong id="menuProfileName">Naganathan Weaving Mills</strong>
+          <small>Click to edit company name, phone, GST &amp; address</small>
+        </div>
+      </button>
+    </div>
+
+    <!-- Feature 1: Fast Quality Presets -->
+    <div class="menu-section">
+      <div class="menu-section-title">
+        <span>STANDARD QUALITY PRESETS</span>
+      </div>
+      <div class="menu-presets-list">
+        <button class="menu-preset-item" onclick="applyPresetAndClose('poplin_54')">
+          <strong>40*40 / 92*88 - 54" Plain</strong>
+          <small>Excel Sample 1 • ₹76.45/m</small>
+        </button>
+        <button class="menu-preset-item" onclick="applyPresetAndClose('sheeting_66')">
+          <strong>40*40 / 100*92 - 66" Sheeting</strong>
+          <small>Excel Sample 2 • ₹97.83/m</small>
+        </button>
+        <button class="menu-preset-item" onclick="applyPresetAndClose('cambric_58')">
+          <strong>60*60 / 92*88 - 58" Cambric</strong>
+          <small>Voile / Fine Plain</small>
+        </button>
+        <button class="menu-preset-item" onclick="applyPresetAndClose('grey_sheeting')">
+          <strong>30*30 / 68*68 - 63" Grey</strong>
+          <small>Standard Grey Sheeting</small>
+        </button>
+        <button class="menu-preset-item" onclick="applyPresetAndClose('heavy_twill')">
+          <strong>20*20 / 108*56 - 58" Twill</strong>
+          <small>Drill / Heavy Cotton</small>
+        </button>
+        <button class="menu-btn-action" onclick="saveAsCustomPreset(); toggleMenu(false);">
+          + Save Current Quality as Preset
+        </button>
+      </div>
+    </div>
+
+    <!-- Feature 2: Order & Bags Calculator Tool -->
+    <div class="menu-section">
+      <div class="menu-section-title">
+        <span>📦 TOOLS &amp; ADVANCED CALCULATORS</span>
+      </div>
+      <button class="menu-item-btn" onclick="openInvoiceModal(); toggleMenu(false);">
+        <span class="item-icon">📄</span>
+        <div class="item-text">
+          <strong>Official A4 Invoice / Quotation</strong>
+          <small>View &amp; Print formal invoice with GST &amp; Signature</small>
+        </div>
+      </button>
+      <button class="menu-item-btn" onclick="toggleOrderDrawer(); toggleMenu(false);">
+        <span class="item-icon">🧵</span>
+        <div class="item-text">
+          <strong>Order Yarn Procurement</strong>
+          <small>Calculate Warp/Weft Bags &amp; Total Weight</small>
+        </div>
+      </button>
+      <button class="menu-item-btn" onclick="saveCurrentCosting(); toggleMenu(false);">
+        <span class="item-icon">💾</span>
+        <div class="item-text">
+          <strong>Save Current Costing</strong>
+          <small>Store quote in phone history</small>
+        </div>
+      </button>
+    </div>
+
+    <!-- Feature 3: Saved Costings & History -->
+    <div class="menu-section">
+      <div class="menu-section-title">
+        <span>📁 SAVED QUOTES HISTORY (<span id="menuHistoryBadge">0</span>)</span>
+      </div>
+      <div id="historyList" class="menu-history-list">
+        <!-- Rendered saved items -->
+      </div>
+      <div class="menu-history-actions">
+        <button class="pill-btn mini" onclick="exportHistoryCsv()">Export CSV</button>
+        <button class="pill-btn mini danger" onclick="clearAllHistory()">Clear All</button>
+      </div>
+    </div>
+
+    <!-- Feature 4: Quick Actions -->
+    <div class="menu-section">
+      <div class="menu-section-title">
+        <span>⚙️ QUICK ACTIONS</span>
+      </div>
+      <button class="menu-item-btn" onclick="openInvoiceModal(); toggleMenu(false);">
+        <span class="item-icon">🖨️</span>
+        <div class="item-text">
+          <strong>Print / Save PDF</strong>
+          <small>Generate clean quotation printout</small>
+        </div>
+      </button>
+      <button class="menu-item-btn" onclick="resetDefaults(); toggleMenu(false);">
+        <span class="item-icon">🔄</span>
+        <div class="item-text">
+          <strong>Reset to Defaults</strong>
+          <small>Reset all inputs to 40*40 54" sample</small>
+        </div>
+      </button>
+    </div>
+
+    <div class="menu-footer">
+      <p id="menuFooterCompany">NAGANATHAN WEAVING MILLS</p>
+      <small>Weaving Analyzer &amp; Invoicing System</small>
+    </div>
+  </div>
+</aside>
+
+<!-- MODAL 1: MY COMPANY / SENDER PROFILE SETTINGS -->
+<div id="profileModal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this)closeProfileModal()">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>🏢 Sender / Company Profile</h3>
+      <button class="drawer-close" onclick="closeProfileModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="small" style="margin-bottom:12px; color:#475569;">
+        Enter your company details below. All invoices, quotations, and WhatsApp messages will be sent using these details.
+      </p>
+      <div class="field-group-stacked">
+        <label>Company / Mill Name</label>
+        <input id="profCompany" class="text" value="NAGANATHAN WEAVING MILLS">
+      </div>
+      <div class="field-group-stacked">
+        <label>Contact Person / Owner Name</label>
+        <input id="profOwner" class="text" value="M. Naganathan">
+      </div>
+      <div class="field-group-stacked">
+        <label>Contact Mobile / WhatsApp</label>
+        <input id="profPhone" class="text" value="+91 98765 43210">
+      </div>
+      <div class="field-group-stacked">
+        <label>City &amp; State</label>
+        <input id="profCity" class="text" value="Erode, Tamil Nadu">
+      </div>
+      <div class="field-group-stacked">
+        <label>GSTIN (Optional)</label>
+        <input id="profGst" class="text" placeholder="e.g. 33AAAAA0000A1Z5">
+      </div>
+      <div class="field-group-stacked">
+        <label>Default Payment Terms &amp; Conditions</label>
+        <textarea id="profTerms" class="modal-textarea" rows="3">1. Rates quoted are Ex-Mill.
+2. GST 5% extra as applicable.
+3. Quotation valid for 7 days.
+4. Delivery within agreed lead time.</textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="pill-btn secondary" onclick="closeProfileModal()">Cancel</button>
+      <button class="pill-btn primary" onclick="saveCompanyProfile()">Save Profile</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 2: OFFICIAL A4 INVOICE / QUOTATION PREVIEW -->
+<div id="invoiceModal" class="modal-backdrop" style="display:none;" onclick="if(event.target===this)closeInvoiceModal()">
+  <div class="modal-card invoice-modal-card">
+    <div class="modal-header">
+      <h3>📄 Official Invoice / Quotation Sheet</h3>
+      <div class="modal-header-actions">
+        <button class="pill-btn mini primary" onclick="window.print()">🖨️ Print / PDF</button>
+        <button class="drawer-close" onclick="closeInvoiceModal()">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body printable-invoice-area" id="printableInvoice">
+      <div class="inv-top">
+        <div class="inv-sender">
+          <h2 id="invCardCompany">NAGANATHAN WEAVING MILLS</h2>
+          <p id="invCardCity">Erode, Tamil Nadu</p>
+          <p>Phone: <span id="invCardPhone">+91 98765 43210</span></p>
+          <p id="invCardGstWrap" style="display:none;">GSTIN: <span id="invCardGst"></span></p>
+        </div>
+        <div class="inv-meta">
+          <div class="inv-badge">COMMERCIAL QUOTE / INVOICE</div>
+          <p><strong>Ref #:</strong> <span id="invRefNum">NC-2026-1042</span></p>
+          <p><strong>Date:</strong> <span id="invDate">23 Oct 2026</span></p>
+          <p><strong>Validity:</strong> 7 Days</p>
+        </div>
+      </div>
+
+      <div class="inv-buyer-box">
+        <strong>TO (BUYER / CONSIGNEE):</strong>
+        <p id="invBuyerName" style="font-weight:700; font-size:15px; margin-top:2px;">M/s. Valued Customer</p>
+        <p id="invBuyerPhone">Contact: --</p>
+      </div>
+
+      <table class="inv-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Item / Construction</th>
+            <th>Weave</th>
+            <th>Width</th>
+            <th>GSM</th>
+            <th>Quantity</th>
+            <th style="text-align:right;">Rate / Mtr</th>
+            <th style="text-align:right;">Amount (INR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><strong id="invTableConst">40*40/92*88-54"</strong></td>
+            <td id="invTableWeave">PLAIN</td>
+            <td id="invTableWidth">54"</td>
+            <td id="invTableGsm">~112.8</td>
+            <td><span id="invTableQty">5,000</span> Mtrs</td>
+            <td style="text-align:right;"><strong id="invTableRate">₹ 76.45</strong></td>
+            <td style="text-align:right;"><strong id="invTableTotal">₹ 3,82,245.00</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="inv-summary-row">
+        <div class="inv-terms-col">
+          <strong>Terms &amp; Conditions:</strong>
+          <pre id="invCardTerms" style="white-space:pre-wrap; font-family:inherit; font-size:11px; margin-top:4px; color:#475569;"></pre>
+        </div>
+        <div class="inv-totals-col">
+          <div class="total-line">
+            <span>Sub Total:</span>
+            <strong id="invSubTotal">₹ 3,82,245.00</strong>
+          </div>
+          <div class="total-line">
+            <span>GST / Taxes:</span>
+            <span>Extra as applicable</span>
+          </div>
+          <div class="total-line grand-total">
+            <span>Net Payable (Ex-Mill):</span>
+            <strong id="invGrandTotal">₹ 3,82,245.00</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="inv-signature-box">
+        <div class="sign-block">
+          <p>Prepared By</p>
+          <div class="sign-line"></div>
+          <p id="invPreparedBy">M. Naganathan</p>
+        </div>
+        <div class="sign-block">
+          <p>For <span id="invForCompany">NAGANATHAN WEAVING MILLS</span></p>
+          <div class="sign-line"></div>
+          <p>Authorized Signatory</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toast" class="toast">Message copied!</div>
+
+<script src="app.js?v=20261023_06"></script>
+</body>
+</html>
