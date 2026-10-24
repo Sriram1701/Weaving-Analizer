@@ -93,17 +93,16 @@ if (Test-Path $finalApk) { Remove-Item -Force $finalApk }
 
 & $apksigner sign --ks $keystore --ks-pass "pass:android123" --key-pass "pass:android123" --ks-key-alias naganathan --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out $finalApk $alignedApk
 
-# Also copy to legacy APK name for backward compatibility
-Copy-Item $finalApk "Naganathan_Weaving_Analyzer.apk" -Force
-
 Write-Host "`n=== Step 8: Verify Signed APK ==="
 & $apksigner verify -v $finalApk
+
+# Clean temporary build artifacts & signature cache
+Remove-Item -Force $rawApk, $alignedApk -ErrorAction SilentlyContinue
+Get-ChildItem -Path . -Filter "*.idsig" | Remove-Item -Force -ErrorAction SilentlyContinue
+if (Test-Path $buildDir) { Remove-Item -Recurse -Force $buildDir -ErrorAction SilentlyContinue }
 
 Write-Host "`n=========================================================="
 Write-Host "SUCCESS: Android APK built and verified successfully!"
 $item = Get-Item $finalApk
-Write-Host "Primary APK:   $($item.FullName) ($([Math]::Round($item.Length / 1MB, 2)) MB)"
+Write-Host "Release APK:   $($item.FullName) ($([Math]::Round($item.Length / 1MB, 2)) MB)"
 Write-Host "=========================================================="
-
-# Clean temporary files
-Remove-Item -Force $rawApk, $alignedApk -ErrorAction SilentlyContinue
