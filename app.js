@@ -1,6 +1,6 @@
 /**
- * NAGANATHAN - WEAVING ANALYZER & FABRIC COSTING
- * Mobile-First Web Application Engine
+ * TEXTILE WEAVING ANALYZER - MAIN APPLICATION CONTROLLER
+ * Integrates WeavingEngine, GstEngine, and StorageEngine
  */
 
 const $ = id => document.getElementById(id);
@@ -10,473 +10,216 @@ const num = id => {
   const val = parseFloat(el.value);
   return Number.isFinite(val) ? val : 0;
 };
-const fmt = (x, dec = 3) => (Number.isFinite(x) ? x.toFixed(dec) : (0).toFixed(dec));
 
-// Preset Qualities (Excel Samples + Industry Standards)
-const PRESETS = {
-  poplin_54: {
-    name: '40*40 54" Plain',
-    construction: '40*40/92*88-54"',
-    warpCount: 40,
-    weftCount: 40,
-    epi: 92,
-    ppi: 88,
-    width: 54,
-    weave: 'PLAIN',
-    warpCrimp: 9,
-    weftInsert: 1,
-    weftCrimp: 2,
-    warpRate: 372.5,
-    weftRate: 372.5,
-    sizingRate: 32,
-    pickRate: 0.11,
-    transport: 1.25,
-    loss: 1,
-    profitPct: 0.06
-  },
-  sheeting_66: {
-    name: '40*40 66" Sheeting',
-    construction: '40*40/100*92-66"',
-    warpCount: 40,
-    weftCount: 40,
-    epi: 100,
-    ppi: 92,
-    width: 66,
-    weave: 'PLAIN',
-    warpCrimp: 14,
-    weftInsert: 1,
-    weftCrimp: 2,
-    warpRate: 372.5,
-    weftRate: 372.5,
-    sizingRate: 26,
-    pickRate: 0.11,
-    transport: 1,
-    loss: 1,
-    profitPct: 0.06
-  },
-  cambric_58: {
-    name: '60*60 58" Cambric',
-    construction: '60*60/92*88-58"',
-    warpCount: 60,
-    weftCount: 60,
-    epi: 92,
-    ppi: 88,
-    width: 58,
-    weave: 'PLAIN',
-    warpCrimp: 10,
-    weftInsert: 1,
-    weftCrimp: 2.5,
-    warpRate: 460,
-    weftRate: 460,
-    sizingRate: 38,
-    pickRate: 0.12,
-    transport: 1.25,
-    loss: 1.2,
-    profitPct: 0.07
-  },
-  grey_sheeting: {
-    name: '30*30 63" Grey',
-    construction: '30*30/68*68-63"',
-    warpCount: 30,
-    weftCount: 30,
-    epi: 68,
-    ppi: 68,
-    width: 63,
-    weave: 'PLAIN',
-    warpCrimp: 8,
-    weftInsert: 1,
-    weftCrimp: 2,
-    warpRate: 310,
-    weftRate: 310,
-    sizingRate: 28,
-    pickRate: 0.10,
-    transport: 1.2,
-    loss: 0.8,
-    profitPct: 0.05
-  },
-  heavy_twill: {
-    name: '20*20 58" Twill',
-    construction: '20*20/108*56-58"',
-    warpCount: 20,
-    weftCount: 20,
-    epi: 108,
-    ppi: 56,
-    width: 58,
-    weave: 'TWILL 2/1',
-    warpCrimp: 12,
-    weftInsert: 1,
-    weftCrimp: 3,
-    warpRate: 275,
-    weftRate: 275,
-    sizingRate: 24,
-    pickRate: 0.11,
-    transport: 1.5,
-    loss: 1.2,
-    profitPct: 0.065
-  }
-};
-
-let historyRecords = JSON.parse(localStorage.getItem('texpro_weaving_history') || '[]');
+// Global App State
+let currentActiveView = 'view-home';
+let currentActivePresetKey = 'poplin_54';
+let currentDocType = 'quotation'; // 'quotation' or 'invoice'
+let currentHistoryTab = 'quotes'; // 'quotes' or 'orders'
 let isAutoSyncing = true;
 
-/**
- * Main Calculation Engine (Excel Formulas)
- */
-function calculate() {
-  // 1. Total Ends (B10 = B6 * B8)
-  const ends = num('epi') * num('width');
-
-  // 2. Reed Space (B11 = B8 + (B8 * B14%) + 2)
-  const reed = num('width') + (num('width') * (num('weftCrimp') / 100)) + 2;
-
-  // 3. Warp Grams/Mtr (B15 = (((B10 * 0.00059) / B4) / ((100 - B12) / 100)) * 1000)
-  const warpCount = num('warpCount');
-  const warpCrimp = num('warpCrimp');
-  const warpCrimpDiv = (100 - warpCrimp) > 0 ? (100 - warpCrimp) / 100 : 0.91;
-  const warpGram = warpCount > 0 ? (((ends * 0.00059) / warpCount) / warpCrimpDiv) * 1000 : 0;
-
-  // 4. Weft Grams/Mtr (B16 = ((B11 * B7 * B13 / 1693.65) / B5) * 1000)
-  const weftCount = num('weftCount');
-  const weftGram = weftCount > 0 ? ((reed * num('ppi') * num('weftInsert') / 1693.65) / weftCount) * 1000 : 0;
-
-  // 5. Cost Components
-  const warpValue = (num('warpRate') * warpGram) / 1000;       // C17
-  const weftValue = (weftGram * num('weftRate')) / 1000;       // C18
-  const sizingValue = (num('sizingRate') * warpGram) / 1000;   // C19
-  const pickValue = num('pickRate') * num('ppi');              // C20
-  const transport = num('transport');                           // C21
-  const loss = num('loss');                                     // C22
-
-  // 6. Total Manufacturing Value (B23 = SUM(C17:C22))
-  const total = warpValue + weftValue + sizingValue + pickValue + transport + loss;
-
-  // 7. Profit & Net Fabric Value (Party Rate)
-  const profit = total * num('profitPct');                      // C24
-  const net = total + profit;                                   // B25
-
-  // 8. Fabric Technical Metrics (GSM, GLM, Rate/Yard)
-  const glm = warpGram + weftGram;
-  const widthM = num('width') * 0.0254;
-  const gsm = widthM > 0 ? glm / widthM : 0;
-  const rateYard = net / 1.09361;
-
-  // Update Readonly Display Fields
-  $('ends').value = fmt(ends, 3);
-  $('reedSpace').value = fmt(reed, 3);
-  $('warpGram').value = fmt(warpGram, 3);
-  $('weftGram').value = fmt(weftGram, 3);
-  $('warpValue').value = fmt(warpValue, 3);
-  $('weftValue').value = fmt(weftValue, 3);
-  $('sizingValue').value = fmt(sizingValue, 3);
-  $('pickValue').value = fmt(pickValue, 3);
-  $('totalValue').textContent = fmt(total, 3);
-  $('netValue').textContent = fmt(net, 3);
-
-  // Update Floating Mobile Sticky Bottom Bar
-  if ($('stickyNetVal')) $('stickyNetVal').textContent = fmt(net, 3);
-
-  // Update Quick Technical Specs
-  if ($('specGlm')) $('specGlm').textContent = `${fmt(glm, 2)} g/m`;
-  if ($specGsm) $specGsm.textContent = `${fmt(gsm, 1)} g/m²`;
-  if ($specYard) $specYard.textContent = `₹${fmt(rateYard, 2)} / yd`;
-
-  // Update Invoice Subtotal Bar in Card 5
-  const partyMeters = num('partyMeters');
-  const invTotal = partyMeters > 0 ? partyMeters * net : 0;
-  if ($('invPartyTotal')) {
-    $('invPartyTotal').textContent = partyMeters > 0
-      ? `₹ ${fmtCurrency(invTotal, 2)} (${partyMeters.toLocaleString('en-IN')} m)`
-      : `₹ ${fmt(net, 3)} / m`;
-  }
-
-  // Update WhatsApp Message Preview
-  updateMessage(net, gsm, glm, rateYard, ends, reed, warpGram, weftGram, total, partyMeters, invTotal);
-
-  // Update Order Calculations if open
-  calculateOrder(warpGram, weftGram, total, net);
-}
-
-// Company / Sender Profile State
-let companyProfile = JSON.parse(localStorage.getItem('naganathan_company_profile') || 'null') || {
-  companyName: 'NAGANATHAN WEAVING MILLS',
-  ownerName: 'M. Naganathan',
-  phone: '+91 98765 43210',
-  city: 'Erode, Tamil Nadu',
-  gstin: '',
-  terms: '1. Rates quoted are Ex-Mill.\n2. GST 5% extra as applicable.\n3. Quotation valid for 7 days.\n4. Delivery within agreed lead time.'
+// Cached Calculation Results
+let lastCalculation = {
+  struct: null,
+  cost: null,
+  proc: null,
+  tax: null
 };
 
-// Automatic migration if user previously had CLOTHING saved
-if (companyProfile && (companyProfile.companyName === 'NAGANATHAN CLOTHING' || companyProfile.companyName === 'CLOTHING')) {
-  companyProfile.companyName = 'NAGANATHAN WEAVING MILLS';
-  try {
-    localStorage.setItem('naganathan_company_profile', JSON.stringify(companyProfile));
-  } catch (e) {}
-}
+// --- View Router ---
+function switchView(viewId) {
+  currentActiveView = viewId;
 
-function updateProfileUI() {
-  const p = companyProfile;
-  if ($('invSenderDisplay')) $('invSenderDisplay').textContent = p.companyName;
-  if ($('drawerCompanyTitle')) $('drawerCompanyTitle').textContent = p.companyName;
-  if ($('menuProfileName')) $('menuProfileName').textContent = p.companyName;
-  if ($('menuFooterCompany')) $('menuFooterCompany').textContent = p.companyName;
-}
+  // Toggle view containers
+  document.querySelectorAll('.view-section').forEach(sec => {
+    sec.classList.remove('active');
+  });
+  const target = $(viewId);
+  if (target) {
+    target.classList.add('active');
+  }
 
-function openProfileModal() {
-  const p = companyProfile;
-  $('profCompany').value = p.companyName || '';
-  $('profOwner').value = p.ownerName || '';
-  $('profPhone').value = p.phone || '';
-  $('profCity').value = p.city || '';
-  $('profGst').value = p.gstin || '';
-  $('profTerms').value = p.terms || '';
-  $('profileModal').style.display = 'flex';
-}
+  // Update Bottom Nav active indicator
+  document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  if (viewId === 'view-home' && $('nav-home')) $('nav-home').classList.add('active');
+  if (viewId === 'view-calc' && $('nav-calc')) $('nav-calc').classList.add('active');
+  if (viewId === 'view-costing' && $('nav-costing')) $('nav-costing').classList.add('active');
+  if (viewId === 'view-history' && $('nav-history')) $('nav-history').classList.add('active');
+  if (viewId === 'view-profile' && $('nav-profile')) $('nav-profile').classList.add('active');
 
-function closeProfileModal() {
-  $('profileModal').style.display = 'none';
-}
-
-function saveCompanyProfile() {
-  companyProfile = {
-    companyName: $('profCompany').value.trim() || 'NAGANATHAN WEAVING MILLS',
-    ownerName: $('profOwner').value.trim() || 'Authorized Signatory',
-    phone: $('profPhone').value.trim(),
-    city: $('profCity').value.trim() || 'Tamil Nadu',
-    gstin: $('profGst').value.trim(),
-    terms: $('profTerms').value.trim()
-  };
-  localStorage.setItem('naganathan_company_profile', JSON.stringify(companyProfile));
-  updateProfileUI();
-  closeProfileModal();
-  calculate();
-  showToast('Company profile saved successfully!');
-}
-
-/**
- * Quotation & Invoice Message Formatter
- */
-function updateMessage(netVal, gsm, glm, rateYard, ends, reed, warpGram, weftGram, total, partyMeters, invTotal) {
-  const name = $('partyName').value.trim();
-  const construction = $('construction').value.trim();
-  const format = $('quoteFormatSelect') ? $('quoteFormatSelect').value : 'invoice';
-  const rate = netVal !== undefined ? fmt(netVal, 2) : $('netValue').textContent;
-  const p = companyProfile;
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const refNum = `NC-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  let msg = '';
-
-  if (format === 'invoice') {
-    // 1. Formal Commercial Invoice & Quotation
-    msg += `📄 *COMMERCIAL INVOICE / QUOTATION*\n`;
-    msg += `*${p.companyName.toUpperCase()}*\n`;
-    msg += `${p.city} | Ph: ${p.phone}\n`;
-    if (p.gstin) msg += `GSTIN: ${p.gstin}\n`;
-    msg += `Date: ${dateStr} | Ref: ${refNum}\n`;
-    msg += `----------------------------------------\n`;
-    msg += `*TO (BUYER):* ${name ? name : 'M/s. Valued Customer'}\n`;
-    msg += `----------------------------------------\n`;
-    msg += `*FABRIC SPECIFICATIONS*\n`;
-    msg += `• Quality: *${construction}*\n`;
-    msg += `• Weave: ${$('weave').value}\n`;
-    msg += `• Finished Width: ${$('width').value}" Inches\n`;
-    if (gsm) msg += `• Fabric Weight: ~${fmt(gsm, 1)} GSM (${fmt(glm, 1)} g/m)\n`;
-    msg += `----------------------------------------\n`;
-    msg += `• *Ex-Mill Rate: ₹ ${rate} / Metre*\n`;
-    if (rateYard) msg += `• Equivalent: ₹ ${fmt(rateYard, 2)} / Yard\n`;
-    if (partyMeters && partyMeters > 0) {
-      msg += `• Order Quantity: *${partyMeters.toLocaleString('en-IN')} Metres*\n`;
-      msg += `----------------------------------------\n`;
-      msg += `💰 *TOTAL AMOUNT: ₹ ${fmtCurrency(invTotal, 2)}*\n`;
+  // Sticky bottom bar visibility
+  const sticky = $('stickyBottomBar');
+  if (sticky) {
+    if (viewId === 'view-calc' || viewId === 'view-costing') {
+      sticky.style.display = 'block';
+    } else {
+      sticky.style.display = 'none';
     }
-    msg += `----------------------------------------\n`;
-    msg += `*TERMS & CONDITIONS*\n`;
-    msg += `${p.terms}\n\n`;
-    msg += `For *${p.companyName}*\n`;
-    msg += `${p.ownerName} (Authorized Signatory)`;
-  } else if (format === 'customer') {
-    // 2. Quick WhatsApp Rate Quote
-    if (name) msg += 'Dear ' + name + ',\n\n';
-    msg += 'Fabric Construction & Rate\n';
-    msg += 'Construction: ' + construction + '\n';
-    msg += 'Rate: ₹' + rate + ' / metre\n\n';
-    msg += 'Regards\n' + p.companyName;
-  } else {
-    // 3. Detailed Technical Sheet for Mill / Party
-    msg += `⚙️ Fabric Technical & Costing Sheet\n`;
-    msg += `Company: ${p.companyName}\n`;
-    msg += `Construction: ${construction}\n`;
-    msg += `Weave: ${$('weave').value} | Width: ${$('width').value}"\n`;
-    if (ends) msg += `Total Ends: ${Math.round(ends)} | Reed Space: ${fmt(reed, 2)}"\n`;
-    if (gsm) msg += `Weight: ~${fmt(gsm, 1)} GSM (${fmt(glm, 1)} g/m)\n\n`;
-    if (warpGram) msg += `• Warp Weight: ${fmt(warpGram, 2)} g/m\n`;
-    if (weftGram) msg += `• Weft Weight: ${fmt(weftGram, 2)} g/m\n`;
-    if (total) msg += `• Manufacturing Cost: ₹${fmt(total, 2)} / m\n`;
-    msg += `• Final Party Rate: ₹${rate} / metre\n\n`;
-    msg += `Regards\n${p.companyName}`;
   }
 
-  $('messagePreview').textContent = msg;
-  return msg;
-}
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
-/**
- * Official A4 Invoice Modal Viewer
- */
-function openInvoiceModal() {
-  const p = companyProfile;
-  const name = $('partyName').value.trim() || 'M/s. Valued Customer';
-  const phone = $('partyPhone').value.trim() || '--';
-  const meters = num('partyMeters') || num('orderMeters') || 1000;
-  const netRate = num('netValue') || 76.45;
-  const totalAmount = meters * netRate;
-
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const refNum = `NC-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  // Header & Sender
-  $('invCardCompany').textContent = p.companyName;
-  $('invCardCity').textContent = p.city;
-  $('invCardPhone').textContent = p.phone;
-  if (p.gstin) {
-    $('invCardGstWrap').style.display = 'block';
-    $('invCardGst').textContent = p.gstin;
-  } else {
-    $('invCardGstWrap').style.display = 'none';
-  }
-
-  // Meta
-  $('invRefNum').textContent = refNum;
-  $('invDate').textContent = dateStr;
-
-  // Buyer
-  $('invBuyerName').textContent = name;
-  $('invBuyerPhone').textContent = `Contact: ${phone}`;
-
-  // Table
-  $('invTableConst').textContent = $('construction').value;
-  $('invTableWeave').textContent = $('weave').value;
-  $('invTableWidth').textContent = `${$('width').value}"`;
-  $('invTableGsm').textContent = $('specGsm') ? $('specGsm').textContent.replace(' g/m²', '') : '~112.8';
-  $('invTableQty').textContent = meters.toLocaleString('en-IN');
-  $('invTableRate').textContent = `₹ ${fmt(netRate, 2)}`;
-  $('invTableTotal').textContent = `₹ ${fmtCurrency(totalAmount, 2)}`;
-
-  // Totals & Terms
-  $('invSubTotal').textContent = `₹ ${fmtCurrency(totalAmount, 2)}`;
-  $('invGrandTotal').textContent = `₹ ${fmtCurrency(totalAmount, 2)}`;
-  $('invCardTerms').textContent = p.terms;
-
-  // Signatures
-  $('invPreparedBy').textContent = p.ownerName;
-  $('invForCompany').textContent = p.companyName;
-
-  $('invoiceModal').style.display = 'flex';
-}
-
-function closeInvoiceModal() {
-  $('invoiceModal').style.display = 'none';
-}
-
-function fmtCurrency(x, dec = 2) {
-  return Number.isFinite(x) ? x.toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '0.00';
-}
-
-/**
- * Menu Drawer Toggle
- */
-function toggleMenu(open) {
-  const drawer = $('menuDrawer');
-  const overlay = $('menuOverlay');
-  if (open) {
-    updateMenuHistory();
-    drawer.classList.add('open');
-    overlay.classList.add('open');
-  } else {
-    drawer.classList.remove('open');
-    overlay.classList.remove('open');
+  if (viewId === 'view-history') {
+    renderHistoryList();
   }
 }
 
-function applyPresetAndClose(key) {
-  applyPreset(key);
-  toggleMenu(false);
+// --- Weaving Sub-tabs ---
+function toggleCalcTab(tab) {
+  const isConst = tab === 'construction';
+  $('calcTabConstruction').style.display = isConst ? 'block' : 'none';
+  $('calcTabParameters').style.display = isConst ? 'none' : 'block';
+  $('segBtnConst').classList.toggle('active', isConst);
+  $('segBtnParams').classList.toggle('active', !isConst);
 }
 
-function updateMenuHistory() {
-  const badge = $('menuHistoryBadge');
-  if (badge) badge.textContent = historyRecords.length;
-  renderHistory();
-}
+// --- Recalculate Everything ---
+function recalculateAll() {
+  const params = {
+    warpCount: num('warpCount'),
+    weftCount: num('weftCount'),
+    epi: num('epi'),
+    ppi: num('ppi'),
+    width: num('width'),
+    warpCrimp: num('warpCrimp'),
+    weftCrimp: num('weftCrimp'),
+    weftInsert: num('weftInsert'),
+    warpRate: num('warpRate'),
+    weftRate: num('weftRate'),
+    sizingRate: num('sizingRate'),
+    pickRate: num('pickRate'),
+    transport: num('transport'),
+    loss: num('loss'),
+    profitPct: num('profitPct'),
+    orderMeters: num('orderMeters') || num('quoteMeters') || 5000,
+    bagWeight: num('bagWeight') || 60,
+    wastePct: num('wastePct') || 2
+  };
 
-/**
- * WhatsApp Send Action
- */
-function sendWhatsApp() {
-  const msg = $('messagePreview').textContent;
-  const phone = $('partyPhone').value.replace(/\D/g, '');
+  // 1. Structural calculations
+  const struct = WeavingEngine.calculateStructure(params);
 
-  if (navigator.share && !phone) {
-    navigator.share({
-      title: 'Commercial Invoice / Quotation',
-      text: msg
-    }).catch(() => {
-      openWhatsAppUrl(msg, phone);
-    });
-    return;
+  // 2. Costing calculations
+  const cost = WeavingEngine.calculateCosting(params, struct);
+
+  // 3. Yarn procurement
+  const proc = WeavingEngine.calculateProcurement(params, struct, cost);
+
+  // 4. Commercial GST calculation
+  const quoteMeters = num('quoteMeters') || params.orderMeters;
+  const rawSubtotal = quoteMeters * cost.netFabricValue;
+  const gstRate = parseFloat($('quoteGstRate') ? $('quoteGstRate').value : 5);
+  const isInclusive = $('quoteTaxMode') && $('quoteTaxMode').value === 'inclusive';
+  const myProfile = StorageEngine.getProfile();
+  const partyState = $('partyState') ? $('partyState').value : 'Tamil Nadu';
+  const isInterState = myProfile.state.trim().toLowerCase() !== partyState.trim().toLowerCase();
+
+  const tax = GstEngine.calculateTax({
+    subtotal: rawSubtotal,
+    gstRatePct: gstRate,
+    isTaxInclusive: isInclusive,
+    isInterState
+  });
+
+  lastCalculation = { struct, cost, proc, tax };
+
+  // Update Weaving Calculation view
+  $('ends').value = WeavingEngine.fmt(struct.totalEnds, 3);
+  $('reedSpace').value = WeavingEngine.fmt(struct.reedSpace, 3);
+  $('warpGram').value = WeavingEngine.fmt(struct.warpGram, 3);
+  $('weftGram').value = WeavingEngine.fmt(struct.weftGram, 3);
+
+  $('specGlm').textContent = `${WeavingEngine.fmt(struct.glm, 2)} g/m`;
+  $('specGsm').textContent = `${WeavingEngine.fmt(struct.gsm, 1)} g/m²`;
+  $('specYard').textContent = `₹${WeavingEngine.fmt(cost.rateYard, 2)} / yd`;
+
+  // Update Costing view
+  $('warpValue').value = WeavingEngine.fmt(cost.warpValue, 3);
+  $('weftValue').value = WeavingEngine.fmt(cost.weftValue, 3);
+  $('sizingValue').value = WeavingEngine.fmt(cost.sizingValue, 3);
+  $('pickValue').value = WeavingEngine.fmt(cost.pickValue, 3);
+  $('totalValue').textContent = WeavingEngine.fmt(cost.totalManufacturingCost, 3);
+  $('netValue').textContent = WeavingEngine.fmt(cost.netFabricValue, 3);
+  $('costRateYard').textContent = `₹ ${WeavingEngine.fmt(cost.rateYard, 2)} / yard`;
+
+  // Update Sticky Bottom Bar
+  if ($('stickyNetVal')) $('stickyNetVal').textContent = WeavingEngine.fmt(cost.netFabricValue, 3);
+
+  // Update Dashboard KPIs
+  if ($('kpiPartyRate')) $('kpiPartyRate').textContent = `₹ ${WeavingEngine.fmt(cost.netFabricValue, 2)} / m`;
+  if ($('kpiGsm')) $('kpiGsm').textContent = `${WeavingEngine.fmt(struct.gsm, 1)} g/m²`;
+  if ($('kpiEnds')) $('kpiEnds').textContent = Math.round(struct.totalEnds).toLocaleString('en-IN');
+  if ($('dashConstruction')) $('dashConstruction').textContent = $('construction').value;
+  if ($('dashGlm')) $('dashGlm').textContent = `${WeavingEngine.fmt(struct.glm, 2)} g/m`;
+  if ($('dashRateYard')) $('dashRateYard').textContent = `₹ ${WeavingEngine.fmt(cost.rateYard, 2)} / yd`;
+
+  // Update Procurement view
+  $('lblWarpCount').textContent = `${params.warpCount}s`;
+  $('lblWeftCount').textContent = `${params.weftCount}s`;
+  $('resWarpKg').textContent = WeavingEngine.fmt(proc.warpKg, 2);
+  $('resWarpBags').textContent = WeavingEngine.fmt(proc.warpBags, 2);
+  $('resWeftKg').textContent = WeavingEngine.fmt(proc.weftKg, 2);
+  $('resWeftBags').textContent = WeavingEngine.fmt(proc.weftBags, 2);
+  $('resTotalYarnKg').textContent = WeavingEngine.fmt(proc.totalYarnKg, 2);
+  $('resTotalBags').textContent = WeavingEngine.fmt(proc.totalBags, 2);
+  $('resOrderCost').textContent = Math.round(proc.orderCost).toLocaleString('en-IN');
+  $('resOrderValue').textContent = Math.round(proc.orderInvoicingValue).toLocaleString('en-IN');
+
+  // Update Quotation & Invoice Financials
+  if ($('qRateDisplay')) $('qRateDisplay').textContent = WeavingEngine.fmt(cost.netFabricValue, 2);
+  if ($('qSubtotalDisplay')) $('qSubtotalDisplay').textContent = WeavingEngine.fmtINR(tax.taxableAmount, 2);
+  if ($('qTaxAmountDisplay')) $('qTaxAmountDisplay').textContent = WeavingEngine.fmtINR(tax.totalTax, 2);
+  if ($('qTaxLabel')) {
+    const taxType = isInterState ? 'IGST' : 'CGST+SGST';
+    $('qTaxLabel').textContent = `${taxType} (${gstRate}%):`;
   }
-
-  openWhatsAppUrl(msg, phone);
+  if ($('qGrandTotalDisplay')) $('qGrandTotalDisplay').textContent = WeavingEngine.fmtINR(tax.grandTotal, 2);
+  if ($('qWordsDisplay')) $('qWordsDisplay').textContent = GstEngine.numberToWordsINR(tax.grandTotal);
 }
 
-function openWhatsAppUrl(msg, phone) {
-  const url = phone
-    ? 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg)
-    : 'https://wa.me/?text=' + encodeURIComponent(msg);
-  window.open(url, '_blank');
+// --- Presets Management ---
+function renderPresetChips() {
+  const container = $('presetScrollContainer');
+  if (!container) return;
+
+  const presets = StorageEngine.getPresets();
+  container.innerHTML = '<span class="preset-label">Quick Qualities <span class="preset-arrow">&rarr;</span></span>';
+
+  Object.keys(presets).forEach(key => {
+    const p = presets[key];
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (key === currentActivePresetKey ? ' active' : '');
+    btn.textContent = p.name;
+    btn.onclick = () => applyPreset(key);
+    container.appendChild(btn);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'chip add-chip';
+  addBtn.textContent = '+ Custom';
+  addBtn.onclick = openSavePresetModal;
+  container.appendChild(addBtn);
 }
 
-/**
- * Copy to Clipboard
- */
-async function copyMessage() {
-  const msg = $('messagePreview').textContent;
-  try {
-    await navigator.clipboard.writeText(msg);
-    showToast('Invoice / Quotation copied to clipboard!');
-  } catch (e) {
-    showToast('Please copy from the preview box.');
-  }
-}
-
-function showToast(text) {
-  const t = $('toast');
-  if (!t) return;
-  t.textContent = text;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2200);
-}
-
-/**
- * Fast Preset Application
- */
 function applyPreset(key) {
-  const p = PRESETS[key];
+  const presets = StorageEngine.getPresets();
+  const p = presets[key];
   if (!p) return;
 
+  currentActivePresetKey = key;
   isAutoSyncing = false;
-  $('construction').value = p.construction;
+
+  $('construction').value = p.construction || `${p.warpCount}*${p.weftCount}/${p.epi}*${p.ppi}-${p.width}"`;
   $('warpCount').value = p.warpCount;
   $('weftCount').value = p.weftCount;
   $('epi').value = p.epi;
   $('ppi').value = p.ppi;
   $('width').value = p.width;
-  $('weave').value = p.weave;
+  if ($('weave') && p.weave) $('weave').value = p.weave;
   $('warpCrimp').value = p.warpCrimp;
-  $('weftInsert').value = p.weftInsert;
+  $('weftInsert').value = p.weftInsert !== undefined ? p.weftInsert : 1;
   $('weftCrimp').value = p.weftCrimp;
   $('warpRate').value = p.warpRate;
   $('weftRate').value = p.weftRate;
@@ -485,24 +228,34 @@ function applyPreset(key) {
   $('transport').value = p.transport;
   $('loss').value = p.loss;
   $('profitPct').value = p.profitPct;
+
+  if ($('dashQualityName')) $('dashQualityName').textContent = p.name;
+
   isAutoSyncing = true;
-
-  // Update active chip styling
-  document.querySelectorAll('.preset-scroll .chip').forEach(c => c.classList.remove('active'));
-  const foundBtn = Array.from(document.querySelectorAll('.preset-scroll .chip')).find(b => b.textContent.includes(p.name));
-  if (foundBtn) foundBtn.classList.add('active');
-
-  calculate();
-  showToast(`Applied: ${p.name}`);
+  renderPresetChips();
+  recalculateAll();
+  showToast(`Applied Quality: ${p.name}`);
 }
 
-function saveAsCustomPreset() {
-  const name = prompt('Enter a name for this custom quality preset:');
-  if (!name || !name.trim()) return;
+function openSavePresetModal() {
+  $('customPresetName').value = $('construction').value;
+  $('savePresetModal').style.display = 'flex';
+}
 
-  const key = 'custom_' + Date.now();
-  PRESETS[key] = {
-    name: name.trim(),
+function closeSavePresetModal() {
+  $('savePresetModal').style.display = 'none';
+}
+
+function saveCustomPresetAction() {
+  const name = $('customPresetName').value.trim();
+  if (!name) {
+    showToast('Please enter a preset name');
+    return;
+  }
+  const id = 'custom_' + Date.now();
+  const preset = {
+    id,
+    name,
     construction: $('construction').value,
     warpCount: num('warpCount'),
     weftCount: num('weftCount'),
@@ -522,42 +275,32 @@ function saveAsCustomPreset() {
     profitPct: num('profitPct')
   };
 
-  // Create chip in scrollbar
-  const chip = document.createElement('button');
-  chip.className = 'chip';
-  chip.textContent = name.trim();
-  chip.onclick = () => applyPreset(key);
-  const addBtn = document.querySelector('.chip.add-chip');
-  if (addBtn && addBtn.parentNode) {
-    addBtn.parentNode.insertBefore(chip, addBtn);
-  }
-
-  showToast(`Saved preset "${name.trim()}"!`);
+  StorageEngine.saveCustomPreset(preset);
+  closeSavePresetModal();
+  renderPresetChips();
+  showToast(`Saved preset: ${name}`);
 }
 
-/**
- * Auto-Parse Construction String
- * e.g. 40*40/92*88-54"
- */
-function parseConstruction() {
+// --- Live Construction String Auto-Parse & Auto-Sync ---
+function parseConstructionLive() {
   const str = $('construction').value.trim();
-  const match = str.match(/(\d+)\s*[*xX/]\s*(\d+)\s*[\/|,|\s]\s*(\d+)\s*[*xX]\s*(\d+)(?:\s*[-|\s]\s*(\d+))?/);
-  if (match) {
+  const parsed = WeavingEngine.parseConstructionString(str);
+  if (parsed) {
     isAutoSyncing = false;
-    $('warpCount').value = match[1];
-    $('weftCount').value = match[2];
-    $('epi').value = match[3];
-    $('ppi').value = match[4];
-    if (match[5]) $('width').value = match[5];
+    $('warpCount').value = parsed.warpCount;
+    $('weftCount').value = parsed.weftCount;
+    $('epi').value = parsed.epi;
+    $('ppi').value = parsed.ppi;
+    if (parsed.width) $('width').value = parsed.width;
     isAutoSyncing = true;
-    calculate();
+    recalculateAll();
     showToast('Auto-parsed: Warp, Weft, EPI, PPI & Width!');
   } else {
     showToast('Format example: 40*40/92*88-54"');
   }
 }
 
-function autoSyncConstruction() {
+function autoSyncConstructionLive() {
   if (!isAutoSyncing) return;
   const warp = $('warpCount').value;
   const weft = $('weftCount').value;
@@ -569,238 +312,735 @@ function autoSyncConstruction() {
   }
 }
 
-function resetDefaults() {
-  applyPreset('poplin_54');
-  $('partyName').value = '';
-  $('partyPhone').value = '';
+// --- Document Type: Quotation vs GST Tax Invoice ---
+function setDocType(type) {
+  currentDocType = type;
+  const isQuote = type === 'quotation';
+  $('docTypeQuote').classList.toggle('active', isQuote);
+  $('docTypeInvoice').classList.toggle('active', !isQuote);
+  $('docCardTitle').textContent = isQuote ? 'Buyer & Consignee Details' : 'GST Invoice Consignee Details';
+  recalculateAll();
 }
 
-/**
- * Order & Yarn Requirement Calculator
- */
-function toggleOrderDrawer() {
-  const sec = $('orderSection');
-  if (!sec) return;
-  const isHidden = sec.style.display === 'none';
-  sec.style.display = isHidden ? 'block' : 'none';
-  $('orderToggleBtn').textContent = isHidden
-    ? '▲ Hide Order Yarn Requirements'
-    : '📦 Calculate Order Yarn Requirements (Bags & Kgs)';
-  if (isHidden) {
-    calculate();
-    sec.scrollIntoView({ behavior: 'smooth' });
+// --- Official A4 Printable Invoice Modal ---
+function openInvoiceModal() {
+  recalculateAll();
+  const prof = StorageEngine.getProfile();
+  const isInvoice = currentDocType === 'invoice';
+  const name = $('partyName').value.trim() || 'M/s. Valued Customer';
+  const phone = $('partyPhone').value.trim() || '--';
+  const state = $('partyState').value;
+  const gstin = $('partyGstin').value.trim();
+  const quoteMeters = num('quoteMeters') || num('orderMeters') || 5000;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const refPrefix = isInvoice ? (prof.invoicePrefix || 'INV') : 'QTN';
+  const refNum = `${refPrefix}-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Header & Sender
+  $('invModalTitle').textContent = isInvoice ? 'Commercial GST Tax Invoice' : 'Formal Commercial Quotation';
+  $('invCardCompany').textContent = prof.companyName;
+  $('invCardAddress').textContent = prof.address || prof.city;
+  $('invCardPhone').textContent = prof.phone;
+  $('invCardState').textContent = prof.state;
+  $('invCardGst').textContent = prof.gstin || 'Unregistered / Exempt';
+
+  // Badge & Metadata
+  $('invCardBadge').textContent = isInvoice ? 'GST TAX INVOICE' : 'FORMAL QUOTATION';
+  $('invCardBadge').style.background = isInvoice ? 'var(--brand-navy)' : 'var(--brand-green)';
+  $('invRefNum').textContent = refNum;
+  $('invDate').textContent = dateStr;
+  $('invValidDays').textContent = isInvoice ? 'N/A' : '7 Days';
+
+  // Buyer Info
+  $('invBuyerName').textContent = name;
+  $('invBuyerDetails').textContent = `Contact: ${phone} | Place of Supply: ${state}`;
+  if (gstin) {
+    $('invBuyerGstWrap').style.display = 'block';
+    $('invBuyerGst').textContent = gstin;
+  } else {
+    $('invBuyerGstWrap').style.display = 'none';
+  }
+
+  // Items Table
+  $('invTableConst').textContent = $('construction').value;
+  $('invTableHsn').textContent = prof.hsnCode || '5208';
+  $('invTableWeave').textContent = $('weave').value;
+  $('invTableWidth').textContent = `${$('width').value}"`;
+  $('invTableGsm').textContent = `~${WeavingEngine.fmt(lastCalculation.struct.gsm, 1)}`;
+  $('invTableQty').textContent = quoteMeters.toLocaleString('en-IN');
+  $('invTableRate').textContent = `₹ ${WeavingEngine.fmt(lastCalculation.cost.netFabricValue, 2)}`;
+  $('invTableAmount').textContent = `₹ ${WeavingEngine.fmtINR(lastCalculation.tax.taxableAmount, 2)}`;
+
+  // Totals
+  $('invSubTotal').textContent = `₹ ${WeavingEngine.fmtINR(lastCalculation.tax.taxableAmount, 2)}`;
+  const taxType = lastCalculation.tax.isInterState ? 'IGST' : 'CGST+SGST';
+  $('invTaxLabel').textContent = `${taxType} (${lastCalculation.tax.gstRatePct}%):`;
+  $('invTaxAmount').textContent = `₹ ${WeavingEngine.fmtINR(lastCalculation.tax.totalTax, 2)}`;
+  $('invGrandTotal').textContent = `₹ ${WeavingEngine.fmtINR(lastCalculation.tax.grandTotal, 2)}`;
+  $('invWordsText').textContent = GstEngine.numberToWordsINR(lastCalculation.tax.grandTotal);
+
+  // Terms & Signatures
+  $('invCardTerms').textContent = prof.terms;
+  $('invPreparedBy').textContent = prof.ownerName;
+  $('invSignCompany').textContent = prof.companyName;
+
+  $('invoiceModal').style.display = 'flex';
+}
+
+function closeInvoiceModal() {
+  $('invoiceModal').style.display = 'none';
+}
+
+function printInvoicePDF() {
+  openInvoiceModal();
+  setTimeout(() => {
+    window.print();
+  }, 120);
+}
+
+// --- WhatsApp Sharing & Messaging ---
+function shareWhatsAppQuickRate() {
+  const prof = StorageEngine.getProfile();
+  const constr = $('construction').value.trim();
+  const rate = WeavingEngine.fmt(lastCalculation.cost.netFabricValue, 2);
+  const yardRate = WeavingEngine.fmt(lastCalculation.cost.rateYard, 2);
+  const gsm = WeavingEngine.fmt(lastCalculation.struct.gsm, 1);
+  const width = $('width').value;
+  const buyer = $('partyName').value.trim();
+
+  let msg = `*FABRIC SPECIFICATION & PARTY RATE*\n`;
+  if (buyer) msg += `To: *${buyer}*\n\n`;
+  msg += `• Quality: *${constr}*\n`;
+  msg += `• Weave: ${$('weave').value} | Width: ${width}"\n`;
+  msg += `• Fabric GSM: ~${gsm} g/m²\n`;
+  msg += `• *Ex-Mill Party Rate: ₹ ${rate} / Metre*\n`;
+  msg += `• Equivalent: ₹ ${yardRate} / Yard\n\n`;
+  msg += `Terms: Rates quoted are Ex-Mill net. GST extra as applicable.\n\n`;
+  msg += `Regards,\n*${prof.companyName}*\nPh: ${prof.phone}`;
+
+  openWhatsAppMessage(msg);
+}
+
+function copyWhatsAppQuickRate() {
+  const prof = StorageEngine.getProfile();
+  const constr = $('construction').value.trim();
+  const rate = WeavingEngine.fmt(lastCalculation.cost.netFabricValue, 2);
+  const msg = `Quality: ${constr} | Party Rate: ₹ ${rate} / Metre | ${prof.companyName}`;
+  copyToClipboard(msg, 'Quick rate copied to clipboard!');
+}
+
+function shareProcurementWhatsApp() {
+  const prof = StorageEngine.getProfile();
+  const constr = $('construction').value.trim();
+  const p = lastCalculation.proc;
+  const meters = num('orderMeters') || 5000;
+
+  let msg = `📦 *YARN PROCUREMENT ORDER REQUIREMENT*\n`;
+  msg += `*${prof.companyName}*\n`;
+  msg += `Quality: *${constr}* (${meters.toLocaleString('en-IN')} Metres)\n`;
+  msg += `----------------------------------------\n`;
+  msg += `• Warp Yarn (${num('warpCount')}s): *${WeavingEngine.fmt(p.warpKg, 2)} kg* (${WeavingEngine.fmt(p.warpBags, 2)} Bags)\n`;
+  msg += `• Weft Yarn (${num('weftCount')}s): *${WeavingEngine.fmt(p.weftKg, 2)} kg* (${WeavingEngine.fmt(p.weftBags, 2)} Bags)\n`;
+  msg += `• *Total Yarn: ${WeavingEngine.fmt(p.totalYarnKg, 2)} kg (${WeavingEngine.fmt(p.totalBags, 2)} Bags)*\n`;
+  msg += `----------------------------------------\n`;
+  msg += `Date: ${new Date().toLocaleDateString('en-GB')}`;
+
+  openWhatsAppMessage(msg);
+}
+
+function copyProcurementNote() {
+  const p = lastCalculation.proc;
+  const msg = `Warp: ${WeavingEngine.fmt(p.warpKg, 2)} kg (${WeavingEngine.fmt(p.warpBags, 2)} Bags), Weft: ${WeavingEngine.fmt(p.weftKg, 2)} kg (${WeavingEngine.fmt(p.weftBags, 2)} Bags), Total: ${WeavingEngine.fmt(p.totalBags, 2)} Bags.`;
+  copyToClipboard(msg, 'Procurement summary copied!');
+}
+
+function sendQuotationWhatsApp() {
+  const prof = StorageEngine.getProfile();
+  const isInvoice = currentDocType === 'invoice';
+  const name = $('partyName').value.trim() || 'Valued Customer';
+  const constr = $('construction').value.trim();
+  const qty = (num('quoteMeters') || 5000).toLocaleString('en-IN');
+  const rate = WeavingEngine.fmt(lastCalculation.cost.netFabricValue, 2);
+  const subtotal = WeavingEngine.fmtINR(lastCalculation.tax.taxableAmount, 2);
+  const grandTotal = WeavingEngine.fmtINR(lastCalculation.tax.grandTotal, 2);
+  const taxPct = lastCalculation.tax.gstRatePct;
+
+  let msg = `📄 *${isInvoice ? 'COMMERCIAL GST TAX INVOICE' : 'FORMAL COMMERCIAL QUOTATION'}*\n`;
+  msg += `*${prof.companyName}*\n`;
+  msg += `${prof.city}, ${prof.state} | Ph: ${prof.phone}\n`;
+  if (prof.gstin) msg += `GSTIN: ${prof.gstin}\n`;
+  msg += `----------------------------------------\n`;
+  msg += `*TO:* ${name}\n`;
+  msg += `• Fabric: *${constr}*\n`;
+  msg += `• Weave: ${$('weave').value} | Width: ${$('width').value}"\n`;
+  msg += `• Quantity: *${qty} Metres*\n`;
+  msg += `• Rate: *₹ ${rate} / Metre*\n`;
+  msg += `• Taxable Amount: ₹ ${subtotal}\n`;
+  msg += `• GST (${taxPct}%): ₹ ${WeavingEngine.fmtINR(lastCalculation.tax.totalTax, 2)}\n`;
+  msg += `💰 *GRAND TOTAL: ₹ ${grandTotal}*\n`;
+  msg += `----------------------------------------\n`;
+  msg += `*Terms:*\n${prof.terms}\n\n`;
+  msg += `Authorized Signatory: ${prof.ownerName}`;
+
+  openWhatsAppMessage(msg);
+}
+
+function openWhatsAppMessage(text) {
+  const phone = $('partyPhone') ? $('partyPhone').value.replace(/\D/g, '') : '';
+  const url = phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+    : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank');
+}
+
+async function copyToClipboard(text, successMsg) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(successMsg);
+  } catch (e) {
+    showToast('Copied to clipboard');
   }
 }
 
-function calculateOrder(warpGram, weftGram, totalCostMtr, netPriceMtr) {
-  if (!$('orderMeters')) return;
-  const meters = num('orderMeters') || 5000;
-  const bagWeight = num('bagWeight') || 60;
-  const waste = 1 + (num('wastePct') / 100);
+// --- History Persistence & Management ---
+function saveCurrentDocument() {
+  const prof = StorageEngine.getProfile();
+  const isInvoice = currentDocType === 'invoice';
+  const name = $('partyName').value.trim() || 'M/s. Valued Customer';
+  const quoteMeters = num('quoteMeters') || 5000;
+  const docNum = StorageEngine.generateDocumentNumber(isInvoice ? 'INV' : 'QTN');
 
-  const warpKg = (warpGram * meters / 1000) * waste;
-  const weftKg = (weftGram * meters / 1000) * waste;
-  const totalYarnKg = warpKg + weftKg;
-
-  const warpBags = bagWeight > 0 ? warpKg / bagWeight : 0;
-  const weftBags = bagWeight > 0 ? weftKg / bagWeight : 0;
-  const totalBags = warpBags + weftBags;
-
-  const orderCost = totalCostMtr * meters;
-  const orderValue = netPriceMtr * meters;
-
-  $('lblWarpCount').textContent = `${num('warpCount')}s`;
-  $('lblWeftCount').textContent = `${num('weftCount')}s`;
-  $('resWarpKg').textContent = fmt(warpKg, 2);
-  $('resWarpBags').textContent = fmt(warpBags, 2);
-  $('resWeftKg').textContent = fmt(weftKg, 2);
-  $('resWeftBags').textContent = fmt(weftBags, 2);
-  $('resTotalYarnKg').textContent = fmt(totalYarnKg, 2);
-  $('resTotalBags').textContent = fmt(totalBags, 2);
-  $('resOrderCost').textContent = Math.round(orderCost).toLocaleString('en-IN');
-  $('resOrderValue').textContent = Math.round(orderValue).toLocaleString('en-IN');
-}
-
-/**
- * Saved Costings History (LocalStorage)
- */
-function saveCurrentCosting() {
   const record = {
-    id: Date.now().toString(),
-    date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+    id: `doc_${Date.now()}`,
+    docNumber: docNum,
+    docType: currentDocType,
+    date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    buyerName: name,
+    buyerPhone: $('partyPhone').value.trim(),
+    buyerState: $('partyState').value,
+    buyerGstin: $('partyGstin').value.trim(),
     construction: $('construction').value,
-    rate: $('netValue').textContent,
-    warpCount: $('warpCount').value,
-    weftCount: $('weftCount').value,
-    epi: $('epi').value,
-    ppi: $('ppi').value,
-    width: $('width').value,
-    weave: $('weave').value,
-    warpRate: $('warpRate').value,
-    weftRate: $('weftRate').value,
-    sizingRate: $('sizingRate').value,
-    pickRate: $('pickRate').value,
-    transport: $('transport').value,
-    loss: $('loss').value,
-    profitPct: $('profitPct').value,
-    warpCrimp: $('warpCrimp').value,
-    weftCrimp: $('weftCrimp'),
-    weftInsert: $('weftInsert').value
+    width: num('width'),
+    meters: quoteMeters,
+    rate: lastCalculation.cost.netFabricValue,
+    subtotal: lastCalculation.tax.taxableAmount,
+    gstRate: parseFloat($('quoteGstRate') ? $('quoteGstRate').value : 5),
+    totalTax: lastCalculation.tax.totalTax,
+    grandTotal: lastCalculation.tax.grandTotal,
+    status: 'finalized',
+    params: {
+      warpCount: num('warpCount'),
+      weftCount: num('weftCount'),
+      epi: num('epi'),
+      ppi: num('ppi'),
+      width: num('width'),
+      weave: $('weave').value,
+      warpCrimp: num('warpCrimp'),
+      weftInsert: num('weftInsert'),
+      weftCrimp: num('weftCrimp'),
+      warpRate: num('warpRate'),
+      weftRate: num('weftRate'),
+      sizingRate: num('sizingRate'),
+      pickRate: num('pickRate'),
+      transport: num('transport'),
+      loss: num('loss'),
+      profitPct: num('profitPct')
+    },
+    struct: lastCalculation ? lastCalculation.struct : null,
+    cost: lastCalculation ? lastCalculation.cost : null,
+    proc: lastCalculation ? lastCalculation.proc : null,
+    tax: lastCalculation ? lastCalculation.tax : null
   };
 
-  historyRecords.unshift(record);
-  localStorage.setItem('texpro_weaving_history', JSON.stringify(historyRecords));
-  updateHistoryBadge();
-  showToast(`Saved ${record.construction} (₹${record.rate}/m)`);
-}
-
-function updateHistoryBadge() {
-  const el = $('historyCount');
-  if (el) el.textContent = historyRecords.length;
-}
-
-function toggleDrawer(open) {
-  const drawer = $('historyDrawer');
-  const overlay = $('drawerOverlay');
-  if (open) {
-    renderHistory();
-    drawer.classList.add('open');
-    overlay.classList.add('open');
+  if (isInvoice) {
+    StorageEngine.saveOrder(record);
+    showToast(`Saved Invoice #${docNum}`);
   } else {
-    drawer.classList.remove('open');
-    overlay.classList.remove('open');
+    StorageEngine.saveQuote(record);
+    showToast(`Saved Quote #${docNum}`);
   }
+
+  updateHistoryCountBadges();
 }
 
-function renderHistory() {
-  const list = $('historyList');
-  if (!list) return;
+function updateHistoryCountBadges() {
+  const quotes = StorageEngine.getQuotes();
+  const orders = StorageEngine.getOrders();
+  if ($('countQuotes')) $('countQuotes').textContent = quotes.length;
+  if ($('countOrders')) $('countOrders').textContent = orders.length;
+}
 
-  if (historyRecords.length === 0) {
-    list.innerHTML = '<p style="text-align:center;color:#64748b;padding:20px 0;">No saved quotes yet.<br>Click "Save Quote" on the app to store quotes.</p>';
+function toggleHistoryTab(tab) {
+  currentHistoryTab = tab;
+  $('histTabQuotes').classList.toggle('active', tab === 'quotes');
+  $('histTabOrders').classList.toggle('active', tab === 'orders');
+  renderHistoryList();
+}
+
+function renderHistoryList() {
+  const container = $('historyListContainer');
+  if (!container) return;
+
+  const isQuotes = currentHistoryTab === 'quotes';
+  const list = isQuotes ? StorageEngine.getQuotes() : StorageEngine.getOrders();
+  const search = $('historySearchInput') ? $('historySearchInput').value.toLowerCase().trim() : '';
+
+  updateHistoryCountBadges();
+
+  const filtered = list.filter(item => {
+    if (!search) return true;
+    return (item.buyerName && item.buyerName.toLowerCase().includes(search)) ||
+           (item.docNumber && item.docNumber.toLowerCase().includes(search)) ||
+           (item.construction && item.construction.toLowerCase().includes(search));
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="card" style="text-align:center; padding:30px 10px; color:var(--text-muted);">
+        <div style="font-size:28px; margin-bottom:6px;">📁</div>
+        <strong>No ${isQuotes ? 'quotes' : 'orders'} found</strong>
+        <p style="font-size:12px; margin-top:4px;">Save quotations or orders from the generator to access them anytime offline.</p>
+      </div>
+    `;
     return;
   }
 
-  list.innerHTML = '';
-  historyRecords.forEach(item => {
+  container.innerHTML = '';
+  filtered.forEach(item => {
     const div = document.createElement('div');
     div.className = 'history-item';
     div.innerHTML = `
-      <div class="history-item-info">
-        <span class="history-item-title">${item.construction}</span>
-        <span class="history-item-sub">${item.date} • Width: ${item.width}"</span>
+      <div class="history-info">
+        <strong>${item.docNumber || 'DOC'} • ${item.buyerName || 'Valued Buyer'}</strong>
+        <small>${item.date} • ${item.construction} (${item.meters || 0} m)</small>
       </div>
-      <div class="history-item-actions">
-        <span class="history-rate">₹${item.rate}</span>
-        <button class="pill-btn mini" onclick="loadHistoryItem('${item.id}')">Load</button>
-        <button class="pill-btn mini danger" onclick="deleteHistoryItem('${item.id}')">&times;</button>
+      <div class="history-actions">
+        <span class="history-rate">₹ ${WeavingEngine.fmtINR(item.grandTotal || item.rate || 0, 2)}</span>
+        <button class="btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="loadHistoryRecord('${item.id}', '${item.docType}')">Load</button>
+        <button class="btn-secondary" style="padding:4px 8px; font-size:11px; color:var(--color-danger);" onclick="deleteHistoryRecord('${item.id}', '${item.docType}')">&times;</button>
       </div>
     `;
-    list.appendChild(div);
+    container.appendChild(div);
   });
 }
 
-function loadHistoryItem(id) {
-  const item = historyRecords.find(x => x.id === id);
-  if (!item) return;
+function loadHistoryRecord(id, type) {
+  const list = type === 'invoice' ? StorageEngine.getOrders() : StorageEngine.getQuotes();
+  const record = list.find(x => x.id === id);
+  if (!record) return;
 
-  isAutoSyncing = false;
-  $('construction').value = item.construction;
-  $('warpCount').value = item.warpCount;
-  $('weftCount').value = item.weftCount;
-  $('epi').value = item.epi;
-  $('ppi').value = item.ppi;
-  $('width').value = item.width;
-  if (item.weave) $('weave').value = item.weave;
-  if (item.warpRate) $('warpRate').value = item.warpRate;
-  if (item.weftRate) $('weftRate').value = item.weftRate;
-  if (item.sizingRate) $('sizingRate').value = item.sizingRate;
-  if (item.pickRate) $('pickRate').value = item.pickRate;
-  if (item.transport) $('transport').value = item.transport;
-  if (item.loss) $('loss').value = item.loss;
-  if (item.profitPct) $('profitPct').value = item.profitPct;
-  isAutoSyncing = true;
+  if (record.params) {
+    const p = record.params;
+    isAutoSyncing = false;
+    $('construction').value = record.construction || '';
+    $('warpCount').value = p.warpCount;
+    $('weftCount').value = p.weftCount;
+    $('epi').value = p.epi;
+    $('ppi').value = p.ppi;
+    $('width').value = p.width;
+    if ($('weave') && p.weave) $('weave').value = p.weave;
+    $('warpCrimp').value = p.warpCrimp;
+    $('weftInsert').value = p.weftInsert;
+    $('weftCrimp').value = p.weftCrimp;
+    $('warpRate').value = p.warpRate;
+    $('weftRate').value = p.weftRate;
+    $('sizingRate').value = p.sizingRate;
+    $('pickRate').value = p.pickRate;
+    $('transport').value = p.transport;
+    $('loss').value = p.loss;
+    $('profitPct').value = p.profitPct;
+    isAutoSyncing = true;
+  }
 
-  calculate();
-  toggleDrawer(false);
-  showToast(`Loaded ${item.construction}!`);
+  if (record.buyerName) $('partyName').value = record.buyerName;
+  if (record.buyerPhone) $('partyPhone').value = record.buyerPhone;
+  if (record.buyerState) $('partyState').value = record.buyerState;
+  if (record.buyerGstin) $('partyGstin').value = record.buyerGstin;
+  if (record.meters) {
+    $('quoteMeters').value = record.meters;
+    $('orderMeters').value = record.meters;
+  }
+
+  recalculateAll();
+  switchView('view-calc');
+  showToast(`Loaded ${record.docNumber || 'record'}!`);
 }
 
-function deleteHistoryItem(id) {
-  historyRecords = historyRecords.filter(x => x.id !== id);
-  localStorage.setItem('texpro_weaving_history', JSON.stringify(historyRecords));
-  updateHistoryBadge();
-  renderHistory();
-  showToast('Record deleted.');
-}
-
-function clearAllHistory() {
-  if (confirm('Clear all saved quotes history?')) {
-    historyRecords = [];
-    localStorage.setItem('texpro_weaving_history', '[]');
-    updateHistoryBadge();
-    renderHistory();
-    showToast('History cleared.');
+function deleteHistoryRecord(id, type) {
+  if (confirm('Delete this saved record?')) {
+    if (type === 'invoice') {
+      StorageEngine.deleteOrder(id);
+    } else {
+      StorageEngine.deleteQuote(id);
+    }
+    renderHistoryList();
+    showToast('Record deleted');
   }
 }
 
-function exportHistoryCsv() {
-  if (historyRecords.length === 0) {
-    showToast('No history to export.');
-    return;
+function clearAllHistoryConfirm() {
+  if (confirm('Are you sure you want to clear all saved quotes & orders history?')) {
+    localStorage.setItem(StorageEngine.KEYS.QUOTES, '[]');
+    localStorage.setItem(StorageEngine.KEYS.ORDERS, '[]');
+    renderHistoryList();
+    showToast('History cleared');
   }
-  const headers = ['Date', 'Construction', 'Width', 'Warp Count', 'Weft Count', 'EPI', 'PPI', 'Rate/Meter'];
-  const rows = historyRecords.map(r => [
-    `"${r.date}"`,
-    `"${r.construction}"`,
-    r.width,
-    r.warpCount,
-    r.weftCount,
-    r.epi,
-    r.ppi,
-    r.rate
-  ]);
-  const csv = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-  const uri = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+}
+
+const CSV_EXPORT_HEADERS = [
+  'Document No', 'Document Type', 'Date', 'Buyer / Party Name', 'Phone', 'State', 'GSTIN',
+  'Fabric Construction', 'Weave', 'Warp Count (Ne)', 'Weft Count (Ne)', 'EPI', 'PPI', 'Width (inch)',
+  'Total Ends', 'Reed Space (inch)', 'Warp Crimp (%)', 'Weft Crimp (%)', 'Weft Insert',
+  'Warp Yarn (g/m)', 'Weft Yarn (g/m)', 'Fabric GLM (g/m)', 'Fabric GSM (g/m²)',
+  'Warp Rate (₹/kg)', 'Weft Rate (₹/kg)', 'Sizing Rate (₹/kg)', 'Pick Rate (₹/pick)',
+  'Transport (₹/m)', 'Loss (₹/m)', 'Warp Cost (₹/m)', 'Weft Cost (₹/m)', 'Sizing Cost (₹/m)',
+  'Weaving Cost (₹/m)', 'Mfg Cost (₹/m)', 'Profit Margin', 'Profit Amount (₹/m)',
+  'Rate Per Meter (₹)', 'Rate Per Yard (₹)', 'Order Meters', 'Taxable Subtotal (₹)',
+  'GST Rate', 'GST Amount (₹)', 'Grand Total (₹)',
+  'Warp Yarn Req (kg)', 'Weft Yarn Req (kg)', 'Total Yarn Req (kg)', 'Total Bags (60kg)'
+];
+
+function csvCell(val) {
+  if (val === null || val === undefined) return '""';
+  const str = String(val);
+  return `"${str.replace(/"/g, '""')}"`;
+}
+
+function recordToCsvDetails(r) {
+  const docNum = r.docNumber || r.quoteNumber || r.orderNumber || 'DOC';
+  const docType = (r.docType === 'invoice' || r.orderNumber) ? 'Tax Invoice' : 'Quotation';
+  const date = r.date || '';
+  const buyerName = r.buyerName || (r.details && r.details.partyName) || 'M/s. Valued Customer';
+  const phone = r.buyerPhone || (r.details && r.details.partyPhone) || '';
+  const state = r.buyerState || '';
+  const gstin = r.buyerGstin || '';
+  const construction = r.construction || '';
+
+  const p = Object.assign({}, r.params || (r.details && (r.details.params || r.details)) || {});
+  if (!p.warpCount && r.warpCount) p.warpCount = r.warpCount;
+  if (!p.weftCount && r.weftCount) p.weftCount = r.weftCount;
+  if (!p.epi && r.epi) p.epi = r.epi;
+  if (!p.ppi && r.ppi) p.ppi = r.ppi;
+  if (!p.width && (r.width || (r.details && r.details.width))) p.width = r.width || (r.details && r.details.width);
+
+  if ((!p.warpCount || !p.epi) && construction) {
+    const parsed = WeavingEngine.parseConstructionString(construction);
+    if (parsed) {
+      if (!p.warpCount) p.warpCount = parsed.warpCount;
+      if (!p.weftCount) p.weftCount = parsed.weftCount;
+      if (!p.epi) p.epi = parsed.epi;
+      if (!p.ppi) p.ppi = parsed.ppi;
+      if (!p.width && parsed.width) p.width = parsed.width;
+    }
+  }
+
+  if (p.warpCrimp === undefined || p.warpCrimp === null) p.warpCrimp = 9;
+  if (p.weftCrimp === undefined || p.weftCrimp === null) p.weftCrimp = 2;
+  if (!p.weftInsert) p.weftInsert = 1;
+  if (!p.profitPct && p.profitPct !== 0) p.profitPct = 0.06;
+  if (!p.width) p.width = 54;
+
+  let struct = r.struct;
+  if (!struct && p.warpCount && p.epi) {
+    struct = WeavingEngine.calculateStructure(p);
+  }
+
+  let cost = r.cost;
+  if (!cost && struct) {
+    cost = WeavingEngine.calculateCosting(p, struct);
+  }
+
+  const meters = parseFloat(r.meters) || (r.details && parseFloat(r.details.meters)) || 0;
+  const rateMtr = parseFloat(r.rate) || (cost ? cost.netFabricValue : 0);
+  const rateYd = cost ? cost.rateYard : (rateMtr / 1.09361);
+  const subtotal = parseFloat(r.subtotal) || (meters > 0 ? meters * rateMtr : 0);
+  const gstRate = parseFloat(r.gstRate || (r.tax ? r.tax.gstRatePct : 5)) || 5;
+  const gstAmount = parseFloat(r.totalTax) || (r.tax ? r.tax.totalTax : (subtotal * gstRate / 100));
+  const grandTotal = parseFloat(r.grandTotal) || (r.tax ? r.tax.grandTotal : (subtotal + gstAmount));
+
+  let proc = r.proc;
+  if (!proc && struct && cost && meters > 0) {
+    proc = WeavingEngine.calculateProcurement({ orderMeters: meters, bagWeight: 60, wastePct: 2 }, struct, cost);
+  }
+
+  return [
+    docNum,
+    docType,
+    date,
+    buyerName,
+    phone,
+    state,
+    gstin,
+    construction,
+    p.weave || 'PLAIN',
+    p.warpCount || '',
+    p.weftCount || '',
+    p.epi || '',
+    p.ppi || '',
+    p.width || '',
+    struct ? Math.round(struct.totalEnds) : '',
+    struct ? WeavingEngine.fmt(struct.reedSpace, 2) : '',
+    p.warpCrimp ?? '',
+    p.weftCrimp ?? '',
+    p.weftInsert ?? 1,
+    struct ? WeavingEngine.fmt(struct.warpGram, 3) : '',
+    struct ? WeavingEngine.fmt(struct.weftGram, 3) : '',
+    struct ? WeavingEngine.fmt(struct.glm, 3) : '',
+    struct ? WeavingEngine.fmt(struct.gsm, 2) : '',
+    p.warpRate !== undefined ? WeavingEngine.fmt(p.warpRate, 2) : '',
+    p.weftRate !== undefined ? WeavingEngine.fmt(p.weftRate, 2) : '',
+    p.sizingRate !== undefined ? WeavingEngine.fmt(p.sizingRate, 2) : '',
+    p.pickRate !== undefined ? WeavingEngine.fmt(p.pickRate, 3) : '',
+    p.transport !== undefined ? WeavingEngine.fmt(p.transport, 2) : '',
+    p.loss !== undefined ? WeavingEngine.fmt(p.loss, 2) : '',
+    cost ? WeavingEngine.fmt(cost.warpValue, 3) : '',
+    cost ? WeavingEngine.fmt(cost.weftValue, 3) : '',
+    cost ? WeavingEngine.fmt(cost.sizingValue, 3) : '',
+    cost ? WeavingEngine.fmt(cost.pickValue, 3) : '',
+    cost ? WeavingEngine.fmt(cost.totalManufacturingCost, 3) : '',
+    p.profitPct !== undefined ? `${(p.profitPct * 100).toFixed(1)}%` : '',
+    cost ? WeavingEngine.fmt(cost.profitValue, 3) : '',
+    WeavingEngine.fmt(rateMtr, 3),
+    WeavingEngine.fmt(rateYd, 3),
+    meters,
+    WeavingEngine.fmt(subtotal, 2),
+    `${gstRate}%`,
+    WeavingEngine.fmt(gstAmount, 2),
+    WeavingEngine.fmt(grandTotal, 2),
+    proc ? WeavingEngine.fmt(proc.warpKg, 2) : '',
+    proc ? WeavingEngine.fmt(proc.weftKg, 2) : '',
+    proc ? WeavingEngine.fmt(proc.totalYarnKg, 2) : '',
+    proc ? WeavingEngine.fmt(proc.totalBags, 2) : ''
+  ];
+}
+
+function downloadCsvBlob(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = uri;
-  a.download = `weaving_quotes_${Date.now()}.csv`;
+  a.href = url;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Service Worker Registration for PWA / Mobile
+function exportHistoryCsv() {
+  const quotes = StorageEngine.getQuotes();
+  const orders = StorageEngine.getOrders();
+  const combined = [...quotes, ...orders];
+  if (combined.length === 0) {
+    showToast('No history records to export');
+    return;
+  }
+
+  const csvContent = '\uFEFF' + [
+    CSV_EXPORT_HEADERS.map(csvCell).join(','),
+    ...combined.map(r => recordToCsvDetails(r).map(csvCell).join(','))
+  ].join('\r\n');
+
+  downloadCsvBlob(csvContent, `weaving_analyzer_history_${Date.now()}.csv`);
+  showToast('Exported complete Excel CSV with full details!');
+}
+
+function exportActiveQuotationCsv() {
+  const isInvoice = currentDocType === 'invoice';
+  const name = $('partyName').value.trim() || 'M/s. Valued Customer';
+  const quoteMeters = num('quoteMeters') || 5000;
+  const docNum = StorageEngine.generateDocumentNumber(isInvoice ? 'INV' : 'QTN');
+
+  const currentRecord = {
+    id: `active_${Date.now()}`,
+    docNumber: docNum,
+    docType: currentDocType,
+    date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    buyerName: name,
+    buyerPhone: $('partyPhone').value.trim(),
+    buyerState: $('partyState').value,
+    buyerGstin: $('partyGstin').value.trim(),
+    construction: $('construction').value,
+    width: num('width'),
+    meters: quoteMeters,
+    rate: lastCalculation.cost.netFabricValue,
+    subtotal: lastCalculation.tax.taxableAmount,
+    gstRate: parseFloat($('quoteGstRate') ? $('quoteGstRate').value : 5),
+    totalTax: lastCalculation.tax.totalTax,
+    grandTotal: lastCalculation.tax.grandTotal,
+    status: 'finalized',
+    params: {
+      warpCount: num('warpCount'),
+      weftCount: num('weftCount'),
+      epi: num('epi'),
+      ppi: num('ppi'),
+      width: num('width'),
+      weave: $('weave').value,
+      warpCrimp: num('warpCrimp'),
+      weftInsert: num('weftInsert'),
+      weftCrimp: num('weftCrimp'),
+      warpRate: num('warpRate'),
+      weftRate: num('weftRate'),
+      sizingRate: num('sizingRate'),
+      pickRate: num('pickRate'),
+      transport: num('transport'),
+      loss: num('loss'),
+      profitPct: num('profitPct')
+    },
+    struct: lastCalculation ? lastCalculation.struct : null,
+    cost: lastCalculation ? lastCalculation.cost : null,
+    proc: lastCalculation ? lastCalculation.proc : null,
+    tax: lastCalculation ? lastCalculation.tax : null
+  };
+
+  const csvContent = '\uFEFF' + [
+    CSV_EXPORT_HEADERS.map(csvCell).join(','),
+    recordToCsvDetails(currentRecord).map(csvCell).join(',')
+  ].join('\r\n');
+
+  downloadCsvBlob(csvContent, `${docNum}_${currentRecord.construction.replace(/[^a-zA-Z0-9]/g, '_')}_costing.csv`);
+  showToast(`Exported ${docNum} Excel CSV!`);
+}
+
+function backupDataJSON() {
+  const json = StorageEngine.exportAllDataJSON();
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `textile_weaving_backup_${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('Backup JSON downloaded');
+}
+
+function importDataJSONFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const success = StorageEngine.importDataJSON(evt.target.result);
+    if (success) {
+      loadProfileToForm();
+      renderPresetChips();
+      renderHistoryList();
+      recalculateAll();
+      showToast('Backup restored successfully!');
+    } else {
+      showToast('Failed to import JSON file');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// --- Company Profile Controller ---
+function loadProfileToForm() {
+  const prof = StorageEngine.getProfile();
+  $('profCompany').value = prof.companyName || '';
+  $('profOwner').value = prof.ownerName || '';
+  $('profPhone').value = prof.phone || '';
+  $('profWhatsapp').value = prof.whatsapp || '';
+  $('profAddress').value = prof.address || '';
+  $('profCity').value = prof.city || '';
+  $('profState').value = prof.state || '';
+  $('profGst').value = prof.gstin || '';
+  $('profHsn').value = prof.hsnCode || '5208';
+  $('profTerms').value = prof.terms || '';
+
+  if ($('dashWelcomeTitle')) {
+    const firstName = (prof.ownerName || 'Sriram').split(' ')[0];
+    $('dashWelcomeTitle').textContent = `Welcome ${firstName}`;
+  }
+}
+
+function saveCompanyProfile() {
+  const updated = {
+    companyName: $('profCompany').value.trim() || 'NAGANATHAN WEAVING MILLS',
+    ownerName: $('profOwner').value.trim() || 'M. Naganathan',
+    phone: $('profPhone').value.trim(),
+    whatsapp: $('profWhatsapp').value.trim(),
+    address: $('profAddress').value.trim(),
+    city: $('profCity').value.trim() || 'Erode',
+    state: $('profState').value.trim() || 'Tamil Nadu',
+    gstin: $('profGst').value.trim(),
+    hsnCode: $('profHsn').value.trim() || '5208',
+    terms: $('profTerms').value.trim()
+  };
+
+  StorageEngine.saveProfile(updated);
+  loadProfileToForm();
+  recalculateAll();
+  showToast('Company profile saved successfully!');
+}
+
+// --- Theme Controller ---
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  if ($('themeIcon')) $('themeIcon').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+  if ($('themeBtnText')) $('themeBtnText').textContent = newTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+
+  const s = StorageEngine.getSettings();
+  s.theme = newTheme;
+  StorageEngine.saveSettings(s);
+}
+
+// --- Toast Notice ---
+function showToast(msg) {
+  const t = $('toastNotice');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// --- Initialization & Event Binding ---
+document.addEventListener('DOMContentLoaded', () => {
+  StorageEngine.init();
+
+  // Load saved theme
+  const settings = StorageEngine.getSettings();
+  if (settings.theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    if ($('themeIcon')) $('themeIcon').textContent = '☀️';
+    if ($('themeBtnText')) $('themeBtnText').textContent = 'Switch to Light Mode';
+  }
+
+  loadProfileToForm();
+  renderPresetChips();
+  updateHistoryCountBadges();
+
+  // Bind live calculation listeners to all inputs
+  document.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', () => {
+      if (['warpCount', 'weftCount', 'epi', 'ppi', 'width'].includes(el.id)) {
+        autoSyncConstructionLive();
+      } else if (el.id === 'construction') {
+        const match = WeavingEngine.parseConstructionString(el.value);
+        if (match) {
+          isAutoSyncing = false;
+          $('warpCount').value = match.warpCount;
+          $('weftCount').value = match.weftCount;
+          $('epi').value = match.epi;
+          $('ppi').value = match.ppi;
+          if (match.width) $('width').value = match.width;
+          isAutoSyncing = true;
+        }
+      }
+      recalculateAll();
+    });
+  });
+
+  // Calculate initial preset
+  applyPreset('poplin_54');
+});
+
+// Offline PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }
-
-// Initialization & Event Binding
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('input').forEach(el => {
-    el.addEventListener('input', () => {
-      if (['warpCount', 'weftCount', 'epi', 'ppi', 'width'].includes(el.id)) {
-        autoSyncConstruction();
-      } else if (el.id === 'construction') {
-        // Live auto-parse if user types/pastes a valid construction string
-        const match = el.value.trim().match(/^(\d+)\s*[*xX/]\s*(\d+)\s*[\/|,|\s]\s*(\d+)\s*[*xX]\s*(\d+)(?:\s*[-|\s]\s*(\d+))?/);
-        if (match) {
-          isAutoSyncing = false;
-          $('warpCount').value = match[1];
-          $('weftCount').value = match[2];
-          $('epi').value = match[3];
-          $('ppi').value = match[4];
-          if (match[5]) $('width').value = match[5];
-          isAutoSyncing = true;
-        }
-      }
-      calculate();
-    });
-  });
-
-  updateProfileUI();
-  updateHistoryBadge();
-  calculate();
-});

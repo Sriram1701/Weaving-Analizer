@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="navyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E456E"/>
+      <stop offset="100%" stop-color="#16324F"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#19B077"/>
+      <stop offset="100%" stop-color="#159765"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#16324F" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Shield / Tile -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="#FFFFFF" filter="url(#shadow)"/>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- Interwoven Warp and Weft Lattice Motif -->
+  <!-- Diagonal Stripe 1 (Green / Weft Top-Left to Bottom-Right) -->
+  <g transform="translate(256, 256) rotate(45) translate(-256, -256)">
+    <!-- Vertical Thread 1 (Green) -->
+    <rect x="180" y="112" width="56" height="288" rx="28" fill="url(#greenGrad)"/>
+    <!-- Vertical Thread 2 (Green) -->
+    <rect x="276" y="112" width="56" height="288" rx="28" fill="url(#greenGrad)"/>
+
+    <!-- Horizontal Thread 1 (Navy) -->
+    <rect x="112" y="180" width="288" height="56" rx="28" fill="url(#navyGrad)"/>
+    <!-- Horizontal Thread 2 (Navy) -->
+    <rect x="112" y="276" width="288" height="56" rx="28" fill="url(#navyGrad)"/>
+
+    <!-- Weave Over-Under Overlaps to create authentic textile interlacing -->
+    <!-- Intersection Top-Right: Green over Navy -->
+    <rect x="276" y="180" width="56" height="56" rx="14" fill="url(#greenGrad)"/>
+    <!-- Intersection Bottom-Left: Green over Navy -->
+    <rect x="180" y="276" width="56" height="56" rx="14" fill="url(#greenGrad)"/>
+  </g>
+</svg>
